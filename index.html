@@ -2,253 +2,223 @@
 <html lang="sv">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Avgångar från Årstaberg</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SL Avgångar - Årstaberg</title>
   <style>
-    html, body {
+    :root {
+      --main-bg: #111;
+      --header-bg: #222;
+      --font-color: #fff;
+      --font-color-muted: #aaa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background: var(--main-bg);
+      color: var(--font-color);
       margin: 0;
       padding: 0;
-      height: 100%;
-      width: 100%;
-      font-family: "Segoe UI", Roboto, sans-serif;
-      background-color: #000;
-      color: #fff;
-      overflow: hidden;
-    }
-
-    .status-bar {
-      position: absolute;
-      top: 1vh;
-      right: 2vw;
-      font-size: 2.5vw;
-      color: #ccc;
-      text-align: right;
-      line-height: 1.2;
-      z-index: 10;
-    }
-
-    .container {
+      font-size: 1.2rem;
       display: flex;
-      flex-direction: row;
-      height: 100%;
-      width: 100%;
-      padding-top: 8vh;
-      box-sizing: border-box;
+      flex-direction: column;
+      height: 100vh;
     }
-
-    .column {
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: var(--header-bg);
+      font-size: 1.6rem;
+    }
+    #stop-name { font-size: 2.5rem; }
+    #last-updated {
+      cursor: pointer;
+      color: var(--font-color-muted);
+    }
+    .tables-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      gap: 2rem;
+      padding: 1rem;
+    }
+    .direction-container {
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 5vw;
-      box-sizing: border-box;
-      border-left: 2px solid #222;
+      overflow: hidden;
     }
-
-    .column:first-child {
-      border-left: none;
+    .ankommet-badge {
+      display: inline-block;
+      margin-left: 1em;
+      color: #ddd;
+      border: 1px solid #888;
+      border-radius: 0.7em;
+      padding: 0.1em 0.6em;
+      font-size: 0.5em;
+      font-weight: 600;
+      vertical-align: middle;
     }
-
-    .title {
-      font-size: 4vw;
-      color: #888;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .minutes {
-      margin-top: -5vh;
-      font-size: 20vw;
-      font-weight: bold;
-      color: #fff;
-    }
-
-    .destination {
-      font-size: 4vw;
+    h2 {
       text-align: center;
-      color: #fff;
-      max-width: 90%;
-      line-height: 1.2;
-      margin:-5vh 0 5vh 0;
-
+      font-size: 2rem;
+      margin: 1rem 0;
     }
-
-    .next-minutes {
-      font-size: 3vw;
-      font-weight: bold;
-      color: #ccc;
-      margin-bottom: 2vh;
-    }
-
-    .disruptions {
-      position: absolute;
-      bottom: 0;
-      left: 0;
+    .table-wrapper { flex: 1; overflow-y: auto; }
+    table {
       width: 100%;
-      padding: 1vh 2vw;
-      background-color: #111;
-      color: #f00;
-      font-size: 1.6vw;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 1rem 0.5rem;
+      border-bottom: 2px solid #555;
+      font-size: 1.6rem;
       text-align: center;
-      box-shadow: 0 -2px 10px #000;
     }
-
-    @media (orientation: portrait) {
-      body::before {
-        content: "Vrid mobilen till liggande läge";
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 2rem;
-        color: #ccc;
-        text-align: center;
-        background-color: #111;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 0 20px #000;
-      }
-
-      .container, header, .status-bar, .disruptions {
-        display: none;
-      }
-    }
+    th { text-transform: uppercase; color: #bbb; position: sticky; top: 0; background: var(--main-bg); z-index: 1; }
+    td:nth-child(2) { text-align: left; }
+    .line { font-weight: bold; color: #fff; padding: 0.4rem; border-radius: 0.5rem; display: inline-block; text-align: center; width: 4ch; min-width: 4ch; }
+    .line-wrapper { position: relative; display: inline-block; }
+    .warning-icon { position: absolute; top: -0.4rem; right: -0.4rem; font-size: 0.8rem; color: yellow; pointer-events: none; }
+    tr.clickable-row:hover { background-color: #222; }
+    .scroll-container { position: relative; display: block; overflow: hidden; max-width: 100%; min-height: 2em; white-space: nowrap; margin-left: 0; }
+    .scroll-text { display: inline-block; white-space: nowrap; animation: scroll-left 11s linear infinite; padding: 5px 0 0 100%; box-sizing: content-box; }
+    .destination-cell { max-width: 20vw; width: 60%; overflow: hidden; white-space: nowrap; position: relative; padding: 0 8px; z-index: 0; }
+    @keyframes scroll-left { 0% { transform: translateX(0%); } 100% { transform: translateX(-100%); } }
   </style>
 </head>
 <body>
-
-  <div class="status-bar">
-    Uppdaterad: <span id="last-update">–</span> (<span id="countdown">30</span>s)
-  </div>
-
-  <div class="container">
-    <div class="column">
-      <div class="title">Tvärbanan</div>
-      <div class="minutes" id="tvarbanan-time">–</div>
-      <div class="destination" id="tvarbanan-dest">Laddar...</div>
-      <div class="next-minutes" id="tvarbanan-next-time"></div>
-    </div>
-    <div class="column">
-      <div class="title">Pendeltåg</div>
-      <div class="minutes" id="pendeltag-time">–</div>
-      <div class="destination" id="pendeltag-dest">Laddar...</div>
-      <div class="next-minutes" id="pendeltag-next-time"></div>
+  <div id="header">
+    <div id="stop-name">Laddar...</div>
+    <div id="last-updated" onclick="manualRefresh()">
+      Senast uppdaterad: <span id="updated-time">-</span> (<span id="countdown">30</span>s)
+      <span id="battery-status" style="margin-left: 1rem; font-size: 1.4rem; color: #aaa;">--%</span>
     </div>
   </div>
-
-  <div class="disruptions" id="disruptions" style="display: none;"></div>
+  <div class="tables-container">
+    <div class="direction-container">
+      <h2>Spårvagn</h2>
+      <div class="table-wrapper">
+        <table id="north-table"><thead><tr><th>Linje</th><th>Destination</th><th class="time">Tid</th></tr></thead><tbody><tr><td colspan="3">Laddar...</td></tr></tbody></table>
+      </div>
+    </div>
+    <div class="direction-container">
+      <h2>Tåg</h2>
+      <div class="table-wrapper">
+        <table id="south-table"><thead><tr><th>Linje</th><th class="dest1">Destination</th><th class="time">Tid</th></tr></thead><tbody><tr><td colspan="3">Laddar...</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const API_URL = "https://transport.integration.sl.se/v1/sites/9531/departures";
+    let currentSiteId = 9520; // Årstaberg
+    let currentStop = "Årstaberg";
     let countdown = 30;
+    let countdownInterval;
 
-    function getMinutesUntil(timeStr) {
-      const now = new Date();
-      const departureTime = new Date(timeStr);
-      const diff = Math.floor((departureTime - now) / 60000);
-      return diff <= 0 ? "Nu" : `${diff}`;
+    function getLineColors(designation) {
+      let backgroundColor = "#555";
+      let textColor = "white";
+      if (["17", "18", "19"].includes(designation)) backgroundColor = "#169d4c";
+      else if (["1", "2", "3", "4"].includes(designation)) backgroundColor = "#008aca";
+      else if (["57", "74", "154", "164"].includes(designation)) backgroundColor = "#d61d23";
+      else if (["40", "41", "42", "43", "44"].includes(designation)) backgroundColor = "#d05d9a";
+      return { backgroundColor, textColor };
     }
 
-    function findNextDepartures(data, groupOfLines, directionCodes) {
-      return data.departures
-        .filter(d =>
-          d.line?.group_of_lines === groupOfLines &&
-          directionCodes.includes(d.direction_code) &&
-          d.stop_area?.name === "Årstaberg"
-        )
-        .sort((a, b) => new Date(a.expected) - new Date(b.expected))
-        .slice(0, 2);
-    }
-
-    function updateDisplay(pendeltagList, tvarbananList) {
-      const pTime = document.getElementById("pendeltag-time");
-      const pNextTime = document.getElementById("pendeltag-next-time");
-      const pDest = document.getElementById("pendeltag-dest");
-
-      const tTime = document.getElementById("tvarbanan-time");
-      const tNextTime = document.getElementById("tvarbanan-next-time");
-      const tDest = document.getElementById("tvarbanan-dest");
-
-      const [p1, p2] = pendeltagList;
-      const [t1, t2] = tvarbananList;
-
-      if (p1) {
-        pTime.textContent = getMinutesUntil(p1.expected);
-        pDest.textContent = p1.destination;
-        pNextTime.textContent = p2 ? `Därefter: ${getMinutesUntil(p2.expected)}` : "";
-      } else {
-        pTime.textContent = "–";
-        pDest.textContent = "Ingen avgång";
-        pNextTime.textContent = "";
-      }
-
-      if (t1) {
-        tTime.textContent = getMinutesUntil(t1.expected);
-        tDest.textContent = t1.destination;
-        tNextTime.textContent = t2 ? `Sedan: ${getMinutesUntil(t2.expected)}` : "";
-      } else {
-        tTime.textContent = "–";
-        tDest.textContent = "Ingen avgång";
-        tNextTime.textContent = "";
-      }
-    }
-
-    function updateStatusBar() {
-      document.getElementById("countdown").textContent = countdown;
-    }
-
-    function updateLastUpdateTime() {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString("sv-SE", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      document.getElementById("last-update").textContent = timeStr;
-    }
-
-    function updateDisruptions(data) {
-      const div = document.getElementById("disruptions");
-      const disruptions = data?.disruptions;
-      if (disruptions && disruptions.length > 0) {
-        const msg = disruptions.map(d => d.message).join(" | ");
-        div.style.display = "block";
-        div.textContent = msg;
-      } else {
-        div.style.display = "none";
-        div.textContent = "";
-      }
-    }
-
-    function fetchDepartures() {
-      fetch(API_URL)
-        .then(res => res.json())
-        .then(data => {
-          const pendeltag = findNextDepartures(data, "Pendeltåg", [0, 2]);
-          const tvarbanan = findNextDepartures(data, "Tvärbanan", [1]);
-          updateDisplay(pendeltag, tvarbanan);
-          updateLastUpdateTime();
-          updateDisruptions(data);
-        })
-        .catch(err => {
-          console.error("Fel vid hämtning:", err);
-          document.getElementById("pendeltag-dest").textContent = "Fel";
-          document.getElementById("tvarbanan-dest").textContent = "Fel";
-        });
-    }
-
-    fetchDepartures();
-
-    setInterval(() => {
-      countdown--;
-      updateStatusBar();
-      if (countdown <= 0) {
+    async function fetchDepartures() {
+      try {
+        const res = await fetch(`https://transport.integration.sl.se/v1/sites/${currentSiteId}/departures`);
+        const data = await res.json();
+        const trams = data.departures.filter(dep => dep.line.transport_mode === "TRAM").slice(0, 10);
+        const trains = data.departures.filter(dep => dep.line.transport_mode === "TRAIN").slice(0, 10);
+        updateTable("north-table", trams);
+        updateTable("south-table", trains);
+        document.getElementById("stop-name").textContent = data.stop_name || currentStop;
+        const now = new Date();
+        document.getElementById("updated-time").textContent = now.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         countdown = 30;
-        fetchDepartures();
+      } catch (err) {
+        console.error("Fel vid hämtning av avgångar:", err);
       }
-    }, 1000);
+    }
+
+    function manualRefresh() {
+      fetchDepartures();
+      countdown = 30;
+    }
+
+    function startCountdown() {
+      countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) { fetchDepartures(); }
+        document.getElementById("countdown").textContent = countdown;
+      }, 1000);
+    }
+
+    function updateTable(tableId, departures) {
+      const tbody = document.getElementById(tableId).querySelector("tbody");
+      tbody.innerHTML = "";
+      if (!departures.length) {
+        tbody.innerHTML = '<tr><td colspan="3">Inga avgångar</td></tr>';
+        return;
+      }
+      departures.forEach(dep => {
+        const { backgroundColor, textColor } = getLineColors(dep.line.designation);
+        const cancelled = dep.state === "CANCELLED";
+        const scheduledTime = new Date(dep.scheduled);
+        const expectedTime = new Date(dep.expected);
+        const diffMin = Math.round((expectedTime - scheduledTime) / 60000);
+        let delayText = "";
+        if (!cancelled && (diffMin > 3 || diffMin < -2)) {
+          delayText = `<span style="font-size:0.75rem; color: yellow; margin-right:4px;">${diffMin > 0 ? '+' : ''}${diffMin}</span>`;
+        }
+        const timeStyle = cancelled ? "color: red; text-decoration: line-through;" : "";
+        const cancelledText = cancelled ? `<div style="color: red; font-size: 0.8rem; font-weight: bold; line-height: 1;">Inställd</div>` : "";
+        const row = document.createElement("tr");
+        row.classList.add("clickable-row");
+        row.style.cursor = "pointer";
+        row.innerHTML = `
+          <td>
+            <span class="line-wrapper">
+              <span class="line" style="background:${backgroundColor};color:${textColor};">${dep.line.designation.padStart(3, ' ')}</span>
+                ${
+                  dep.state === "CANCELLED"
+                    ? `<span class="warning-icon">🔴</span>`
+                    : (dep.deviations && dep.deviations.length)
+                      ? `<span class="warning-icon">🟡</span>`
+                      : ""
+                }
+            </span>
+          </td>
+          <td class="destination-cell">${dep.destination}</td>
+          <td class="time">${cancelledText}${delayText}<span style="${timeStyle}">${dep.display}</span></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function updateBatteryStatus() {
+      if (!navigator.getBattery) {
+        document.getElementById("battery-status").textContent = "N/A";
+        return;
+      }
+      navigator.getBattery().then(battery => {
+        function updateAll() {
+          const level = Math.round(battery.level * 100);
+          document.getElementById("battery-status").textContent = level + "%";
+        }
+        updateAll();
+        battery.addEventListener("levelchange", updateAll);
+        battery.addEventListener("chargingchange", updateAll);
+      });
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      fetchDepartures();
+      startCountdown();
+      updateBatteryStatus();
+    });
   </script>
 </body>
 </html>

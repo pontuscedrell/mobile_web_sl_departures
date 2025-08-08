@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>SL Avgångar Mobil</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-around;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .station-panel {
+      flex: 1;
+      margin: 1vw;
+      padding: 2vw;
+      background: #222;
+      border-radius: 2vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 40vw;
+      min-height: 80vh;
+    }
+    .station-name {
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      text-align: center;
+      color: #bbb;
+      font-weight: 600;
+    }
+    .minutes {
+      font-size: 8rem;
+      font-weight: bold;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 1rem;
+      line-height: 1;
+    }
+    .next-dep-label {
+      font-size: 1.2rem;
+      color: #aaa;
+      margin-top: 1rem;
+      text-align: center;
+    }
+    @media (max-width: 900px) {
+      body { flex-direction: column; }
+      .station-panel { min-width: 80vw; min-height: 40vh; }
+      .minutes { font-size: 5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="station-panel" id="station1">
+    <div class="station-name" id="station1-name">Grindsgatan</div>
+    <div class="minutes" id="station1-minutes">--</div>
+    <div class="next-dep-label">minuter till nästa avgång</div>
+  </div>
+  <div class="station-panel" id="station2">
+    <div class="station-name" id="station2-name">Skanstull</div>
+    <div class="minutes" id="station2-minutes">--</div>
+    <div class="next-dep-label">minuter till nästa avgång</div>
+  </div>
+  <script>
+    // Set the station IDs and names you want to show
+    const stations = [
+      { id: 1353, name: "Grindsgatan", mode: "BUS" },
+      { id: 9190, name: "Skanstull", mode: "METRO" }
+    ];
+
+    async function fetchNextDeparture(siteId, mode) {
+      try {
+        const res = await fetch(`https://transport.integration.sl.se/v1/sites/${siteId}/departures`);
+        const data = await res.json();
+        // Filter departures for the desired transport mode
+        const departures = data.departures.filter(dep => dep.line.transport_mode === mode && dep.state !== "CANCELLED");
+        if (departures.length === 0) return null;
+        // Get the earliest expected time
+        const nextDep = departures.reduce((min, dep) => {
+          const t = new Date(dep.expected);
+          return (!min || t < new Date(min.expected)) ? dep : min;
+        }, null);
+        return nextDep;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    async function updatePanels() {
+      for (let i = 0; i < stations.length; i++) {
+        const station = stations[i];
+        const nextDep = await fetchNextDeparture(station.id, station.mode);
+        const minDiv = document.getElementById(`station${i+1}-minutes`);
+        if (nextDep) {
+          const now = new Date();
+          const depTime = new Date(nextDep.expected);
+          let mins = Math.floor((depTime - now) / 60000);
+          if (mins < 0) mins = 0;
+          minDiv.textContent = mins;
+        } else {
+          minDiv.textContent = "--";
+        }
+      }
+    }
+
+    document.getElementById("station1-name").textContent = stations[0].name;
+    document.getElementById("station2-name").textContent = stations[1].name;
+
+    // Initial fetch and update every 30s
+    updatePanels();
+    setInterval(updatePanels, 30000);
+  </script>
+</body>
+</html>

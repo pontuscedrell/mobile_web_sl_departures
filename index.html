@@ -51,10 +51,17 @@
   }
   .destination {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* centered by default */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-	margin-left: 5px;
+    margin-left: 5px;
+    line-height: 1.2;
+  }
+  .destination.has-ticker {
+    justify-content: flex-start; /* top align if ticker present */
   }
   .big-minutes {
     font-family: 'Orbitron', sans-serif;
@@ -88,13 +95,13 @@
     text-overflow: ellipsis;
   }
 td:nth-child(1), th:nth-child(1) {
-  width: 6ch; /* tillräckligt för två siffror + padding */
+  width: 6ch;
 }
 td:nth-child(2), th:nth-child(2) {
-  width: auto; /* flexar ut */
+  width: auto;
 }
 td:nth-child(3), th:nth-child(3) {
-  width: 6ch; /* tillräckligt för t.ex. '12 min' */
+  width: 6ch;
   text-align: right;
 }
   .next-line {
@@ -116,24 +123,27 @@ td:nth-child(3), th:nth-child(3) {
     text-align: right;
     white-space: nowrap;
   }
-  
   .line-wrapper {
-  position: relative;
-  display: inline-block;
-}
-
-.warning-icon {
- position: absolute; top: -0.4rem; right: -0.4rem; font-size: 0.8rem; color: yellow; pointer-events: none; }
-
-/* Extra space in table rows for badge */
-table tbody td {
-  padding-top: 6px;   /* was 2px before */
-  padding-bottom: 6px;
-  vertical-align: middle;
-}
-
-
-
+    position: relative;
+    display: inline-block;
+  }
+  .warning-icon {
+    position: absolute;
+    top: -0.4rem;
+    right: -0.4rem;
+    font-size: 0.8rem;
+    color: yellow;
+    pointer-events: none;
+  }
+  table tbody td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    vertical-align: middle;
+  }
+  @keyframes scroll-left {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-100%); }
+  }
 </style>
 </head>
 <body>
@@ -198,8 +208,6 @@ async function fetchDepartures() {
     if (!res.ok) throw new Error(`API-svar: ${res.status} ${res.statusText}`);
     const data = await res.json();
     if (!data.departures) throw new Error("Ingen 'departures'-nyckel i API-svaret");
-	
-	
 
     const trams = data.departures
       .filter(dep => dep.line.transport_mode === "TRAM" && dep.direction_code === 1)
@@ -224,48 +232,29 @@ function updateColumn(prefix, departures) {
   const minEl = document.getElementById(`${prefix}-min`);
   const tbody = document.getElementById(`${prefix}-next`);
 
+  destEl.classList.remove("has-ticker");
+  const oldTicker = destEl.querySelector(".ticker");
+  if (oldTicker) oldTicker.remove();
+
   if (!departures.length) {
     showErrorState(prefix);
     return;
   }
 
   const first = departures[0];
-  if (first.state === "CANCELLED") {
-  // Line without badge
+  const designation = first.line.designation || first.line.name || "-";
+  const colors = getLineColors(designation);
+
+  // Top row
   lineEl.innerHTML = `
     <span class="line-wrapper">
       <span class="line" style="background:${colors.backgroundColor};color:${colors.textColor};">${designation}</span>
     </span>
   `;
-
-  // Destination in red
-  destEl.textContent = first.destination;
-  destEl.style.color = "red";
-
-  // Strike minutes and add small "inställd" below
-  minEl.innerHTML = `
-    <span style="text-decoration: line-through; font-size: 44px; display: block;">${first.display}</span>
-    <span style="font-size: 20px; color: red;">inställd</span>
-  `;
-  return; // Skip normal display logic
-}
-
-  const designation = first.line.designation || first.line.name || "-";
-  const colors = getLineColors(designation);
-
-  // --- Top departure: no warning icon ---
-  lineEl.innerHTML = `
-    <span class="line-wrapper">
-      <span class="line" style="background:${colors.backgroundColor};color:${colors.textColor};">
-        ${designation}
-      </span>
-    </span>
-  `;
-
   destEl.textContent = first.destination;
   minEl.textContent = first.display;
 
-  // Delay/early coloring logic
+  // Delay/early color
   if (first.state !== "CANCELLED" && first.expected && first.scheduled) {
     const scheduled = new Date(first.scheduled);
     const expected = new Date(first.expected);
@@ -276,46 +265,36 @@ function updateColumn(prefix, departures) {
     } else {
       minEl.style.color = "";
     }
-  } else if (first.state === "CANCELLED") {
-    minEl.style.color = "red";
   }
 
-  // Deviation text scroller
+  // Top-row ticker
   if (first.deviations && first.deviations.length) {
-    const devMsg = first.deviations
-      .map(dev => dev.message)
-      .filter(msg => msg && msg.trim().toLowerCase() !== "inställd")
-      .join(" | ");
-if (devMsg) {
-  const scrollDiv = document.createElement("div");
-  scrollDiv.style.whiteSpace = "nowrap";
-  scrollDiv.style.overflow = "hidden";
-  scrollDiv.style.fontSize = "14px";
-  scrollDiv.style.color = "yellow";
-
-  const scrollText = document.createElement("div");
-  scrollText.textContent = `${devMsg}`;
-  scrollText.style.display = "inline-block";
-  scrollText.style.paddingLeft = "100%";
-
-  // --- Dynamic speed based on length ---
-  const charCount = scrollText.textContent.length;
-  const seconds = Math.max(8, Math.min(20, charCount * 0.11));
-  // minimum 8s, maximum 40s
-  scrollText.style.animation = `scroll-left ${seconds}s linear infinite`;
-  // --------------------------------------
-
-  scrollDiv.appendChild(scrollText);
-  destEl.appendChild(scrollDiv);
-}
+    const devMsg = first.deviations.map(dev => dev.message).filter(msg => msg.trim().toLowerCase() !== "inställd").join(" | ");
+    if (devMsg) {
+      destEl.classList.add("has-ticker");
+      const scrollDiv = document.createElement("div");
+      scrollDiv.className = "ticker";
+      scrollDiv.style.whiteSpace = "nowrap";
+      scrollDiv.style.overflow = "hidden";
+      scrollDiv.style.fontSize = "14px";
+      scrollDiv.style.color = "yellow";
+      const scrollText = document.createElement("div");
+      scrollText.textContent = devMsg;
+      scrollText.style.display = "inline-block";
+      scrollText.style.paddingLeft = "100%";
+      const charCount = scrollText.textContent.length;
+      const seconds = Math.max(8, Math.min(40, charCount * 0.11));
+      scrollText.style.animation = `scroll-left ${seconds}s linear infinite`;
+      scrollDiv.appendChild(scrollText);
+      destEl.appendChild(scrollDiv);
+    }
   }
 
-  // Next departures (with warning badge logic)
+  // Table rows
   tbody.innerHTML = "";
   departures.slice(1).forEach(dep => {
     const depDesignation = dep.line.designation || dep.line.name || "-";
     const depColors = getLineColors(depDesignation);
-
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>
@@ -336,6 +315,38 @@ if (devMsg) {
       <td class="next-time">${dep.display}</td>
     `;
     tbody.appendChild(row);
+
+    if (dep.deviations && dep.deviations.length) {
+      const devMsg = dep.deviations.map(dev => dev.message).filter(msg => msg.trim().toLowerCase() !== "inställd").join(" | ");
+      if (devMsg) {
+        const destCell = row.querySelector(".next-dest");
+        const originalDest = destCell.textContent;
+        setTimeout(() => {
+          const scrollDiv = document.createElement("div");
+          scrollDiv.style.whiteSpace = "nowrap";
+          scrollDiv.style.overflow = "hidden";
+          scrollDiv.style.fontSize = "16px";
+          scrollDiv.style.color = "yellow";
+          const scrollText = document.createElement("div");
+          scrollText.textContent = devMsg;
+          scrollText.style.display = "inline-block";
+          scrollText.style.paddingLeft = "100%";
+          const charCount = scrollText.textContent.length;
+          const seconds = Math.max(8, Math.min(40, charCount * 0.11));
+          scrollText.style.animation = `scroll-left ${seconds}s linear infinite`;
+          scrollDiv.appendChild(scrollText);
+          destCell.textContent = "";
+          destCell.appendChild(scrollDiv);
+          const revertTimeout = setTimeout(() => {
+            destCell.textContent = originalDest;
+          }, seconds * 1000);
+          scrollDiv.addEventListener("click", () => {
+            clearTimeout(revertTimeout);
+            destCell.textContent = originalDest;
+          });
+        }, 5000);
+      }
+    }
   });
 }
 
@@ -349,20 +360,7 @@ function showErrorState(prefix) {
 }
 
 fetchDepartures();
-
-
-
 setInterval(fetchDepartures, 30000);
-</script>
-
-</script>
-
-<style>
-@keyframes scroll-left {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-100%); }
-}
-</style>
 </script>
 </body>
 </html>

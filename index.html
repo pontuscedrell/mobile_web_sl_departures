@@ -54,13 +54,13 @@
     .title {
       font-size: 4vw;
       color: #888;
-      margin-bottom: 3vh;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
 
     .minutes {
-      font-size: 14vw;
+      margin-top: -5vh;
+      font-size: 20vw;
       font-weight: bold;
       color: #fff;
     }
@@ -120,8 +120,7 @@
 <body>
 
   <div class="status-bar">
-    Senast uppdaterad: <span id="last-update">–</span><br>
-    Nästa uppdatering om: <span id="countdown">30</span>s
+    Uppdaterad: <span id="last-update">–</span> (<span id="countdown">30</span>s)
   </div>
 
   <div class="container">
@@ -149,7 +148,7 @@
       const now = new Date();
       const departureTime = new Date(timeStr);
       const diff = Math.floor((departureTime - now) / 60000);
-      return diff <= 0 ? "Nu" : `${diff} min`;
+      return diff <= 0 ? "Nu" : `${diff}`;
     }
 
     function findNextDepartures(data, groupOfLines, directionCodes) {

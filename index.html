@@ -16,23 +16,11 @@
       overflow: hidden;
     }
 
-    header {
-      position: absolute;
-      top: 0;
-      left: 0;
-      padding: 1vh 2vw;
-      background-color: #111;
-      color: #ccc;
-      font-size: 2vw;
-      z-index: 10;
-      box-shadow: 0 0 10px #000;
-    }
-
     .status-bar {
       position: absolute;
       top: 1vh;
       right: 2vw;
-      font-size: 1.3vw;
+      font-size: 2.5vw;
       color: #ccc;
       text-align: right;
       line-height: 1.2;
@@ -75,19 +63,20 @@
       font-size: 14vw;
       font-weight: bold;
       color: #fff;
-      margin-bottom: 1vh;
     }
 
     .destination {
-      font-size: 5vw;
+      font-size: 4vw;
       text-align: center;
       color: #fff;
       max-width: 90%;
       line-height: 1.2;
+      margin:-5vh 0 5vh 0;
+
     }
 
     .next-minutes {
-      font-size: 5vw;
+      font-size: 3vw;
       font-weight: bold;
       color: #ccc;
       margin-bottom: 2vh;
@@ -130,11 +119,9 @@
 </head>
 <body>
 
-  <header>Årstaberg</header>
-
   <div class="status-bar">
-    Senast: <span id="last-update">–</span><br>
-    Nästa om: <span id="countdown">30</span>s
+    Senast uppdaterad: <span id="last-update">–</span><br>
+    Nästa uppdatering om: <span id="countdown">30</span>s
   </div>
 
   <div class="container">
@@ -191,7 +178,7 @@
       if (p1) {
         pTime.textContent = getMinutesUntil(p1.expected);
         pDest.textContent = p1.destination;
-        pNextTime.textContent = p2 ? `Sedan: ${getMinutesUntil(p2.expected)}` : "";
+        pNextTime.textContent = p2 ? `Därefter: ${getMinutesUntil(p2.expected)}` : "";
       } else {
         pTime.textContent = "–";
         pDest.textContent = "Ingen avgång";

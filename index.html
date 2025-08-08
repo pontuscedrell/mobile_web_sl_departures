@@ -3,122 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>SL Avgångar Mobil</title>
+  <title>Avgångar från Årstaberg</title>
   <style>
-    body {
+    html, body {
       margin: 0;
       padding: 0;
-      background: #111;
+      height: 100%;
+      width: 100%;
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background-color: #000;
       color: #fff;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: row;
-      justify-content: space-around;
-      align-items: center;
-      height: 100vh;
-      width: 100vw;
       overflow: hidden;
     }
-    .station-panel {
+
+    .container {
+      display: flex;
+      flex-direction: row;
+      height: 100%;
+      width: 100%;
+    }
+
+    .column {
       flex: 1;
-      margin: 1vw;
-      padding: 2vw;
-      background: #222;
-      border-radius: 2vw;
       display: flex;
       flex-direction: column;
-      align-items: center;
       justify-content: center;
-      min-width: 40vw;
-      min-height: 80vh;
+      align-items: center;
+      padding: 5vw;
+      box-sizing: border-box;
+      border-left: 2px solid #222;
     }
-    .station-name {
-      font-size: 2.5rem;
-      margin-bottom: 2rem;
-      text-align: center;
-      color: #bbb;
-      font-weight: 600;
+
+    .column:first-child {
+      border-left: none;
     }
+
+    .title {
+      font-size: 4vw;
+      color: #888;
+      margin-bottom: 3vh;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
     .minutes {
-      font-size: 8rem;
+      font-size: 14vw;
       font-weight: bold;
+      color: #0f0;
+      text-shadow: 0 0 10px #0f0;
+      margin-bottom: 2vh;
+    }
+
+    .destination {
+      font-size: 5vw;
+      text-align: center;
       color: #fff;
-      text-align: center;
-      margin-bottom: 1rem;
-      line-height: 1;
+      max-width: 90%;
+      line-height: 1.2;
     }
-    .next-dep-label {
-      font-size: 1.2rem;
-      color: #aaa;
-      margin-top: 1rem;
-      text-align: center;
-    }
-    @media (max-width: 900px) {
-      body { flex-direction: column; }
-      .station-panel { min-width: 80vw; min-height: 40vh; }
-      .minutes { font-size: 5rem; }
+
+    @media (orientation: portrait) {
+      body::before {
+        content: "Vrid mobilen till liggande läge";
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2rem;
+        color: #ccc;
+        text-align: center;
+        background-color: #111;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 0 20px #000;
+      }
+
+      .container {
+        display: none;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="station-panel" id="station1">
-    <div class="station-name" id="station1-name">Grindsgatan</div>
-    <div class="minutes" id="station1-minutes">--</div>
-    <div class="next-dep-label">minuter till nästa avgång</div>
+  <div class="container">
+    <div class="column">
+      <div class="title">Tvärbanan</div>
+      <div class="minutes" id="tvarbanan-time">–</div>
+      <div class="destination" id="tvarbanan-dest">Laddar...</div>
+    </div>
+    <div class="column">
+      <div class="title">Pendeltåg</div>
+      <div class="minutes" id="pendeltag-time">–</div>
+      <div class="destination" id="pendeltag-dest">Laddar...</div>
+    </div>
   </div>
-  <div class="station-panel" id="station2">
-    <div class="station-name" id="station2-name">Skanstull</div>
-    <div class="minutes" id="station2-minutes">--</div>
-    <div class="next-dep-label">minuter till nästa avgång</div>
-  </div>
+
   <script>
-    // Set the station IDs and names you want to show
-    const stations = [
-      { id: 1353, name: "Grindsgatan", mode: "BUS" },
-      { id: 9190, name: "Skanstull", mode: "METRO" }
-    ];
+    const API_URL = "https://transport.integration.sl.se/v1/sites/9531/departures";
 
-    async function fetchNextDeparture(siteId, mode) {
-      try {
-        const res = await fetch(`https://transport.integration.sl.se/v1/sites/${siteId}/departures`);
-        const data = await res.json();
-        // Filter departures for the desired transport mode
-        const departures = data.departures.filter(dep => dep.line.transport_mode === mode && dep.state !== "CANCELLED");
-        if (departures.length === 0) return null;
-        // Get the earliest expected time
-        const nextDep = departures.reduce((min, dep) => {
-          const t = new Date(dep.expected);
-          return (!min || t < new Date(min.expected)) ? dep : min;
-        }, null);
-        return nextDep;
-      } catch (err) {
-        return null;
+    function getMinutesUntil(timeStr) {
+      const now = new Date();
+      const departureTime = new Date(timeStr);
+      const diff = Math.floor((departureTime - now) / 60000);
+      return diff <= 0 ? "Nu" : `${diff} min`;
+    }
+
+    function findNextDeparture(data, groupOfLines, directionCodes) {
+      return data.departures
+        .filter(d =>
+          d.line?.group_of_lines === groupOfLines &&
+          directionCodes.includes(d.direction_code) &&
+          d.stop_area?.name === "Årstaberg"
+        )
+        .sort((a, b) => new Date(a.expected) - new Date(b.expected))[0];
+    }
+
+    function updateDisplay(pendeltag, tvarbanan) {
+      const pDest = document.getElementById("pendeltag-dest");
+      const pTime = document.getElementById("pendeltag-time");
+      const tDest = document.getElementById("tvarbanan-dest");
+      const tTime = document.getElementById("tvarbanan-time");
+
+      if (pendeltag) {
+        pTime.textContent = getMinutesUntil(pendeltag.expected);
+        pDest.textContent = pendeltag.destination;
+      } else {
+        pTime.textContent = "–";
+        pDest.textContent = "Ingen avgång";
+      }
+
+      if (tvarbanan) {
+        tTime.textContent = getMinutesUntil(tvarbanan.expected);
+        tDest.textContent = tvarbanan.destination;
+      } else {
+        tTime.textContent = "–";
+        tDest.textContent = "Ingen avgång";
       }
     }
 
-    async function updatePanels() {
-      for (let i = 0; i < stations.length; i++) {
-        const station = stations[i];
-        const nextDep = await fetchNextDeparture(station.id, station.mode);
-        const minDiv = document.getElementById(`station${i+1}-minutes`);
-        if (nextDep) {
-          const now = new Date();
-          const depTime = new Date(nextDep.expected);
-          let mins = Math.floor((depTime - now) / 60000);
-          if (mins < 0) mins = 0;
-          minDiv.textContent = mins;
-        } else {
-          minDiv.textContent = "--";
-        }
-      }
+    function fetchDepartures() {
+      fetch(API_URL)
+        .then(res => res.json())
+        .then(data => {
+          const pendeltag = findNextDeparture(data, "Pendeltåg", [0, 2]);
+          const tvarbanan = findNextDeparture(data, "Tvärbanan", [1]);
+          updateDisplay(pendeltag, tvarbanan);
+        })
+        .catch(err => {
+          console.error("Fel vid hämtning:", err);
+          document.getElementById("pendeltag-dest").textContent = "Fel";
+          document.getElementById("tvarbanan-dest").textContent = "Fel";
+        });
     }
 
-    document.getElementById("station1-name").textContent = stations[0].name;
-    document.getElementById("station2-name").textContent = stations[1].name;
-
-    // Initial fetch and update every 30s
-    updatePanels();
-    setInterval(updatePanels, 30000);
+    fetchDepartures();
+    setInterval(fetchDepartures, 30000); // uppdatera var 30:e sekund
   </script>
 </body>
 </html>

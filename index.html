@@ -66,9 +66,9 @@
   .big-minutes {
     font-family: 'Orbitron', sans-serif;
     font-size: 64px;
-    font-weight: 700;
+    font-weight: 900;
     text-align: center;
-    margin: 0px 0 20px;
+    margin: 0px 0 15px;
   }
   table {
     width: 100%;
@@ -94,16 +94,16 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-td:nth-child(1), th:nth-child(1) {
-  width: 6ch;
-}
-td:nth-child(2), th:nth-child(2) {
-  width: auto;
-}
-td:nth-child(3), th:nth-child(3) {
-  width: 6ch;
-  text-align: right;
-}
+  td:nth-child(1), th:nth-child(1) {
+    width: 6ch;
+  }
+  td:nth-child(2), th:nth-child(2) {
+    width: auto;
+  }
+  td:nth-child(3), th:nth-child(3) {
+    width: 6ch;
+    text-align: right;
+  }
   .next-line {
     font-weight: bold;
     padding: 0.3rem;
@@ -135,6 +135,12 @@ td:nth-child(3), th:nth-child(3) {
     color: yellow;
     pointer-events: none;
   }
+  
+  .cancelled-time {
+	color: red;
+	text-decoration: line-through;
+  }
+  
   table tbody td {
     padding-top: 6px;
     padding-bottom: 6px;
@@ -143,6 +149,13 @@ td:nth-child(3), th:nth-child(3) {
   @keyframes scroll-left {
     0% { transform: translateX(0%); }
     100% { transform: translateX(-100%); }
+  }
+  /* NEW: bounce back and forth for long destinations */
+  @keyframes scroll-bounce {
+    0%   { transform: translateX(0); }
+    40%  { transform: translateX(0); }
+    60%  { transform: translateX(calc(-100% + 100%)); }
+    100% { transform: translateX(0); }
   }
 </style>
 </head>
@@ -188,8 +201,21 @@ td:nth-child(3), th:nth-child(3) {
   </div>
 </div>
 
+<div id="status-bar" style="
+  font-size:14px;
+  color:#bbb;
+  margin-top:8px;
+  text-align:center;
+">
+  ⏳ Laddar...
+</div>
+
 <script>
 let currentSiteId = 9531;
+let lastUpdateTime = null;
+let nextUpdateIn = 30; // seconds
+let lastUpdateDuration = null;
+let lastUpdateSuccess = false;
 
 function getLineColors(designation) {
   let backgroundColor = "#555";
@@ -203,6 +229,7 @@ function getLineColors(designation) {
 }
 
 async function fetchDepartures() {
+  const startTime = performance.now();
   try {
     const res = await fetch(`https://transport.integration.sl.se/v1/sites/${currentSiteId}/departures`);
     if (!res.ok) throw new Error(`API-svar: ${res.status} ${res.statusText}`);
@@ -211,16 +238,21 @@ async function fetchDepartures() {
 
     const trams = data.departures
       .filter(dep => dep.line.transport_mode === "TRAM" && dep.direction_code === 1)
-      .slice(0, 4);
+      .slice(0, 3); // fetch a few more so we can skip cancellations
 
     const trains = data.departures
       .filter(dep => dep.line.transport_mode === "TRAIN" && dep.direction_code === 2)
-      .slice(0, 4);
+      .slice(0, 3);
 
+    lastUpdateDuration = Math.round(performance.now() - startTime);
     updateColumn("tram", trams);
     updateColumn("train", trains);
+    lastUpdateSuccess = true;
+    lastUpdateTime = new Date();
+    nextUpdateIn = 30;
   } catch (err) {
     console.error("Fel vid hämtning:", err);
+    lastUpdateSuccess = false; 
     showErrorState("tram");
     showErrorState("train");
   }
@@ -241,7 +273,13 @@ function updateColumn(prefix, departures) {
     return;
   }
 
-  const first = departures[0];
+  // Pick first non-cancelled for top row
+  const firstNonCancelled = departures.find(dep =>
+    dep.journey?.state !== "CANCELLED" && dep.state !== "CANCELLED"
+  );
+  const first = firstNonCancelled || departures[0];
+  const tableItems = departures.filter(dep => dep !== first);
+
   const designation = first.line.designation || first.line.name || "-";
   const colors = getLineColors(designation);
 
@@ -251,25 +289,37 @@ function updateColumn(prefix, departures) {
       <span class="line" style="background:${colors.backgroundColor};color:${colors.textColor};">${designation}</span>
     </span>
   `;
-  destEl.textContent = first.destination;
-  minEl.textContent = first.display;
 
-  // Delay/early color
+  destEl.innerHTML = '';
+  const destText = document.createElement('span');
+  destText.textContent = first.destination;
+  destEl.appendChild(destText);
+
+  requestAnimationFrame(() => {
+    if (!first.deviations?.length && destText.scrollWidth > destEl.clientWidth) {
+      destText.style.display = 'inline-block';
+      destText.style.animation = 'scroll-bounce 8s ease-in-out infinite';
+    }
+  });
+
+  // Show big minutes normally (since first is never cancelled here)
+  minEl.textContent = first.display;
+  minEl.style.color = "";
+  minEl.style.textDecoration = "";
+
+  // Delay highlighting
   if (first.state !== "CANCELLED" && first.expected && first.scheduled) {
     const scheduled = new Date(first.scheduled);
     const expected = new Date(first.expected);
     const diffMin = Math.round((expected - scheduled) / 60000);
-    if (diffMin > 3 || diffMin < -2) {
-      minEl.textContent += ` (${diffMin > 0 ? "+" : ""}${diffMin})`;
-      minEl.style.color = "yellow";
-    } else {
-      minEl.style.color = "";
-    }
   }
 
-  // Top-row ticker
+  // Top-row ticker for deviations
   if (first.deviations && first.deviations.length) {
-    const devMsg = first.deviations.map(dev => dev.message).filter(msg => msg.trim().toLowerCase() !== "inställd").join(" | ");
+    const devMsg = first.deviations
+      .map(dev => dev.message)
+      .filter(msg => msg.trim().toLowerCase() !== "inställd")
+      .join(" | ");
     if (devMsg) {
       destEl.classList.add("has-ticker");
       const scrollDiv = document.createElement("div");
@@ -286,15 +336,17 @@ function updateColumn(prefix, departures) {
       const seconds = Math.max(8, Math.min(40, charCount * 0.11));
       scrollText.style.animation = `scroll-left ${seconds}s linear infinite`;
       scrollDiv.appendChild(scrollText);
+      destEl.innerHTML = '';
       destEl.appendChild(scrollDiv);
     }
   }
 
-  // Table rows
+  // Build table rows
   tbody.innerHTML = "";
-  departures.slice(1).forEach(dep => {
+  tableItems.forEach(dep => {
     const depDesignation = dep.line.designation || dep.line.name || "-";
     const depColors = getLineColors(depDesignation);
+    const isCancelled = dep.journey?.state === "CANCELLED" || dep.state === "CANCELLED";
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>
@@ -302,22 +354,25 @@ function updateColumn(prefix, departures) {
           <span class="next-line" style="background:${depColors.backgroundColor};color:${depColors.textColor};">
             ${depDesignation}
           </span>
-          ${
-            dep.state === "CANCELLED"
-              ? `<span class="warning-icon">🔴</span>`
-              : (dep.deviations && dep.deviations.length)
-                ? `<span class="warning-icon">🟡</span>`
-                : ""
+          ${isCancelled
+            ? `<span class="warning-icon">🔴</span>`
+            : (dep.deviations && dep.deviations.length)
+              ? `<span class="warning-icon">🟡</span>`
+              : ""
           }
         </span>
       </td>
       <td class="next-dest">${dep.destination}</td>
-      <td class="next-time">${dep.display}</td>
+      <td class="next-time${isCancelled ? ' cancelled-time' : ''}">${dep.display}</td>
     `;
     tbody.appendChild(row);
 
+    // Delay deviation ticker in table rows
     if (dep.deviations && dep.deviations.length) {
-      const devMsg = dep.deviations.map(dev => dev.message).filter(msg => msg.trim().toLowerCase() !== "inställd").join(" | ");
+      const devMsg = dep.deviations
+        .map(dev => dev.message)
+        .filter(msg => msg.trim().toLowerCase() !== "inställd")
+        .join(" | ");
       if (devMsg) {
         const destCell = row.querySelector(".next-dest");
         const originalDest = destCell.textContent;
@@ -350,11 +405,87 @@ function updateColumn(prefix, departures) {
   });
 }
 
+function updateStatusBar() {
+  const now = new Date();
+  const currentTimeStr = now.toLocaleTimeString('sv-SE');
+  let lastUpdateStr = lastUpdateTime
+    ? lastUpdateTime.toLocaleTimeString('sv-SE')
+    : "–";
+  let durationStr = lastUpdateDuration !== null
+    ? `${lastUpdateDuration}ms`
+    : '';
+
+  let freshnessEmoji = '❌';
+  if (lastUpdateSuccess && lastUpdateTime) {
+    const ageSeconds = Math.floor((Date.now() - lastUpdateTime.getTime()) / 1000);
+    freshnessEmoji = ageSeconds <= 60 ? '✅' : '⚠️';
+  }
+  
+let batteryStr = "";
+if (batteryLevel !== null) {
+  if (batteryCharging) {
+    batteryStr = `${batteryLevel}% ⚡`;
+  } else {
+    if (batteryLevel <= 20) {
+      batteryStr = `${batteryLevel}% 🪫`; // Low battery, usually red
+    } else {
+      batteryStr = `${batteryLevel}% 🔋`;
+    }
+  }
+}
+
+  const statusEl = document.getElementById('status-bar');
+  statusEl.textContent =
+    `🕒 ${currentTimeStr} | 🔄 ${lastUpdateStr}${durationStr ? ` | ⏱️ ${durationStr}` : ''} | ⏳ ${nextUpdateIn}s ${freshnessEmoji}${batteryStr ? ` | ${batteryStr}` : ''}`;
+}
+
+let batteryLevel = null;
+let batteryCharging = null;
+
+async function initBatteryStatus() {
+  if (!navigator.getBattery) {
+    console.warn("Battery API not supported.");
+    return;
+  }
+  try {
+    const battery = await navigator.getBattery();
+    
+    function updateBatteryInfo() {
+      batteryLevel = Math.round(battery.level * 100);
+      batteryCharging = battery.charging;
+    }
+
+    // Initial read
+    updateBatteryInfo();
+
+    // Event listeners
+    battery.addEventListener('levelchange', updateBatteryInfo);
+    battery.addEventListener('chargingchange', updateBatteryInfo);
+  } catch (err) {
+    console.error("Battery API error:", err);
+  }
+}
+
+initBatteryStatus();
+
+
+setInterval(() => {
+  if (nextUpdateIn > 0) nextUpdateIn--;
+  updateStatusBar();
+}, 1000);
+
 function showErrorState(prefix) {
-  document.getElementById(`${prefix}-line`).textContent = "-";
-  document.getElementById(`${prefix}-line`).style.backgroundColor = "#555";
-  document.getElementById(`${prefix}-dest`).textContent = "";
-  document.getElementById(`${prefix}-min`).textContent = "--";
+  const lineContainer = document.getElementById(`${prefix}-line`);
+  const innerLine = lineContainer.querySelector('.line');
+  if (innerLine) {
+    innerLine.style.backgroundColor = '#555';
+    innerLine.style.color = 'white';
+    innerLine.textContent = '-';
+  } else {
+    lineContainer.textContent = '-';
+  }
+  document.getElementById(`${prefix}-dest`).textContent = '';
+  document.getElementById(`${prefix}-min`).textContent = '--';
   document.getElementById(`${prefix}-next`).innerHTML =
     `<tr><td colspan="3" style="text-align:center;color:#bbb;">Ingen data tillgänglig</td></tr>`;
 }

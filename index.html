@@ -4,159 +4,209 @@
 <meta charset="UTF-8">
 <title>Avgångstavla</title>
 <style>
-  body {
-    margin: 0;
-    background: #000;
-    color: #fff;
-    font-family: sans-serif;
-    width: 640px;
-    height: 360px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-    box-sizing: border-box;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 1vh 1vw;
+}
+
+/* Columns layout */
+.columns {
+  display: flex;
+  flex: 1;
+  gap: 2vw;
+  flex-wrap: wrap; /* allow stacking if screen too narrow */
+}
+
+.col {
+  flex: 1 1 45%; /* about half screen on landscape */
+  display: flex;
+  flex-direction: column;
+  background: #111;
+  border-radius: 1vw;
+  padding: 0;
+  overflow: hidden;
+  min-width: 250px;
+}
+
+/* Top row styling */
+.top-row {
+  display: flex;
+  align-items: center;
+  font-size: 3vw;
+  margin-bottom: 0.5vh;
+  min-width: 0;
+}
+
+.line {
+  font-weight: bold;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  display: inline-block;
+  text-align: center;
+  width: 3ch;
+  margin-right: 1vw;
+  flex-shrink: 0;
+}
+
+.destination {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 0.5vw;
+  line-height: 1.2;
+}
+
+.destination.has-ticker {
+  justify-content: flex-start;
+}
+
+.big-minutes {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8vw;
+  font-weight: 900;
+  text-align: center;
+  margin: 0 0 2vh;
+}
+
+/* Table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 2vw;
+  table-layout: fixed;
+}
+
+th {
+  text-align: left;
+  color: #bbb;
+  font-weight: normal;
+  padding-bottom: 0.5vh;
+  border-bottom: 2px solid #444;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+td {
+  padding: 0.5vh 0;
+  vertical-align: middle;
+  border-bottom: 1px solid #333;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+td:nth-child(1), th:nth-child(1) {
+  width: 6ch;
+}
+td:nth-child(3), th:nth-child(3) {
+  width: 6ch;
+  text-align: right;
+}
+
+.next-line {
+  font-weight: bold;
+  padding: 0.3rem;
+  border-radius: 0.5rem;
+  display: inline-block;
+  text-align: center;
+  width: 3ch;
+  min-width: 3ch;
+  font-size: 0.9em;
+}
+
+.next-dest {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.next-time {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.line-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.warning-icon {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  font-size: 0.8rem;
+  color: yellow;
+  pointer-events: none;
+}
+
+.cancelled-time {
+  color: red;
+  text-decoration: line-through;
+}
+
+table tbody td {
+  padding-top: 0.8vh;
+  padding-bottom: 0.8vh;
+  vertical-align: middle;
+}
+
+/* Scroll animations */
+@keyframes scroll-left {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* Bounce back and forth for long destinations */
+@keyframes scroll-bounce {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(0); }
+  60%  { transform: translateX(calc(-100% + 100%)); }
+  100% { transform: translateX(0); }
+}
+
+/* Status bar responsive */
+#status-bar {
+  font-size: 1.8vw;
+  color: #bbb;
+  margin-top: 1vh;
+  text-align: center;
+}
+
+/* Small devices: stack columns vertically */
+@media (max-width: 600px) {
   .columns {
-    display: flex;
-    flex: 1;
-    gap: 12px;
+    flex-direction: column;
+    gap: 2vh;
   }
   .col {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background: #111;
-    border-radius: 8px;
-    padding: 0;
-    overflow: hidden;
-  }
-  .top-row {
-    display: flex;
-    align-items: center;
-    font-size: 30px;
-    margin-bottom: 4px;
-    min-width: 0;
-  }
-  .line {
-    font-weight: bold;
-    padding: 0.4rem;
-    border-radius: 0.5rem;
-    display: inline-block;
-    text-align: center;
-    width: 3ch;
-    max-width: 3ch;
-    margin-right: 10px;
-    flex-shrink: 0;
-  }
-  .destination {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* centered by default */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-left: 5px;
-    line-height: 1.2;
-  }
-  .destination.has-ticker {
-    justify-content: flex-start; /* top align if ticker present */
+    flex: 1 1 100%;
   }
   .big-minutes {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 70px;
-    font-weight: 900;
-    text-align: center;
-    margin: 0px 0 15px;
+    font-size: 12vw;
   }
   table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 20px;
-    table-layout: fixed;
+    font-size: 3vw;
   }
-  th {
-    text-align: left;
-    color: #bbb;
-    font-weight: normal;
-    padding-bottom: 4px;
-    border-bottom: 2px solid #444;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+  #status-bar {
+    font-size: 3vw;
   }
-  td {
-    padding: 2px 0;
-    vertical-align: middle;
-    border-bottom: 1px solid #333;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  td:nth-child(1), th:nth-child(1) {
-    width: 6ch;
-  }
-  td:nth-child(2), th:nth-child(2) {
-    width: auto;
-  }
-  td:nth-child(3), th:nth-child(3) {
-    width: 6ch;
-    text-align: right;
-  }
-  .next-line {
-    font-weight: bold;
-    padding: 0.3rem;
-    border-radius: 0.5rem;
-    display: inline-block;
-    text-align: center;
-    width: 3ch;
-    min-width: 3ch;
-    font-size: 0.9em;
-  }
-  .next-dest {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .next-time {
-    text-align: right;
-    white-space: nowrap;
-  }
-  .line-wrapper {
-    position: relative;
-    display: inline-block;
-  }
-  .warning-icon {
-    position: absolute;
-    top: -0.4rem;
-    right: -0.4rem;
-    font-size: 0.8rem;
-    color: yellow;
-    pointer-events: none;
-  }
-  
-  .cancelled-time {
-	color: red;
-	text-decoration: line-through;
-  }
-  
-  table tbody td {
-    padding-top: 6px;
-    padding-bottom: 6px;
-    vertical-align: middle;
-  }
-  @keyframes scroll-left {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-100%); }
-  }
-  /* NEW: bounce back and forth for long destinations */
-  @keyframes scroll-bounce {
-    0%   { transform: translateX(0); }
-    40%  { transform: translateX(0); }
-    60%  { transform: translateX(calc(-100% + 100%)); }
-    100% { transform: translateX(0); }
-  }
+}
+
 </style>
 </head>
 <body>

@@ -200,14 +200,15 @@
     </table>
   </div>
 </div>
-
 <div id="status-bar" style="
   font-size:14px;
   color:#bbb;
   margin-top:8px;
-  text-align:center;
+  display:flex;
+  justify-content:space-between;
 ">
-  ⏳ Laddar...
+  <span id="status-left"></span>
+  <span id="status-right"></span>
 </div>
 
 <script>
@@ -216,6 +217,8 @@ let lastUpdateTime = null;
 let nextUpdateIn = 30; // seconds
 let lastUpdateDuration = null;
 let lastUpdateSuccess = false;
+let batteryLevel = null;
+let batteryCharging = null;
 
 function getLineColors(designation) {
   let backgroundColor = "#555";
@@ -406,67 +409,59 @@ function updateColumn(prefix, departures) {
 }
 
 function updateStatusBar() {
-  const now = new Date();
-  const currentTimeStr = now.toLocaleTimeString('sv-SE');
-  let lastUpdateStr = lastUpdateTime
-    ? lastUpdateTime.toLocaleTimeString('sv-SE')
-    : "–";
-  let durationStr = lastUpdateDuration !== null
-    ? `${lastUpdateDuration}ms`
-    : '';
-
+  let lastUpdateStr = "--:--:--";
   let freshnessEmoji = '❌';
+  let timeColor = '#bbb'; // default gray
+
   if (lastUpdateSuccess && lastUpdateTime) {
+    lastUpdateStr = lastUpdateTime.toLocaleTimeString('sv-SE');
     const ageSeconds = Math.floor((Date.now() - lastUpdateTime.getTime()) / 1000);
-    freshnessEmoji = ageSeconds <= 60 ? '✅' : '⚠️';
-  }
-  
-let batteryStr = "";
-if (batteryLevel !== null) {
-  if (batteryCharging) {
-    batteryStr = `${batteryLevel}% ⚡`;
-  } else {
-    if (batteryLevel <= 20) {
-      batteryStr = `${batteryLevel}% 🪫`; // Low battery, usually red
+
+    if (ageSeconds <= 60) {
+      freshnessEmoji = '✅';
     } else {
-      batteryStr = `${batteryLevel}% 🔋`;
+      freshnessEmoji = '⚠️';
+      timeColor = 'red'; // make text red if stale
     }
   }
-}
 
-  const statusEl = document.getElementById('status-bar');
-  statusEl.textContent =
-    `🕒 ${currentTimeStr} | 🔄 ${lastUpdateStr}${durationStr ? ` | ⏱️ ${durationStr}` : ''} | ⏳ ${nextUpdateIn}s ${freshnessEmoji}${batteryStr ? ` | ${batteryStr}` : ''}`;
-}
-
-let batteryLevel = null;
-let batteryCharging = null;
-
-async function initBatteryStatus() {
-  if (!navigator.getBattery) {
-    console.warn("Battery API not supported.");
-    return;
-  }
-  try {
-    const battery = await navigator.getBattery();
-    
-    function updateBatteryInfo() {
-      batteryLevel = Math.round(battery.level * 100);
-      batteryCharging = battery.charging;
+  let batteryStr = "";
+  if (batteryLevel !== null) {
+    if (batteryCharging) {
+      batteryStr = `${batteryLevel}% ⚡`;
+    } else {
+      batteryStr = batteryLevel <= 20 ? `${batteryLevel}% 🪫` : `${batteryLevel}% 🔋`;
     }
+  }
 
-    // Initial read
-    updateBatteryInfo();
+  const leftEl = document.getElementById('status-left');
+  leftEl.style.color = timeColor;
+  leftEl.textContent = `${lastUpdateStr} (${nextUpdateIn}s) ${freshnessEmoji}`;
 
-    // Event listeners
-    battery.addEventListener('levelchange', updateBatteryInfo);
-    battery.addEventListener('chargingchange', updateBatteryInfo);
-  } catch (err) {
-    console.error("Battery API error:", err);
+  document.getElementById('status-right').textContent = batteryStr;
+}
+
+
+function initBatteryStatus() {
+  if ('getBattery' in navigator) {
+    navigator.getBattery().then(battery => {
+      function updateBatteryInfo() {
+        batteryLevel = Math.round(battery.level * 100);
+        batteryCharging = battery.charging;
+        updateStatusBar();
+      }
+      updateBatteryInfo();
+
+      battery.addEventListener('levelchange', updateBatteryInfo);
+      battery.addEventListener('chargingchange', updateBatteryInfo);
+    });
+  } else {
+    console.warn('Battery API not supported in this browser.');
   }
 }
 
-initBatteryStatus();
+
+
 
 
 setInterval(() => {
@@ -490,6 +485,7 @@ function showErrorState(prefix) {
     `<tr><td colspan="3" style="text-align:center;color:#bbb;">Ingen data tillgänglig</td></tr>`;
 }
 
+initBatteryStatus();
 fetchDepartures();
 setInterval(fetchDepartures, 30000);
 </script>

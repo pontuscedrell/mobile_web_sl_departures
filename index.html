@@ -136,10 +136,28 @@
     pointer-events: none;
   }
   
+  .warning-icon-top {
+    position: absolute;
+    top: -0.5rem;
+    right: 0rem;
+    font-size: 1rem;
+    color: yellow;
+    pointer-events: none;
+   }
+  
   .cancelled-time {
 	color: red;
 	text-decoration: line-through;
   }
+  
+   destination-small {
+	  font-size: 1em; /* smaller than normal destination */
+	}
+
+  .deviation-big {
+	  font-size: 0.6em; /* larger than the table deviation */
+	  color: yellow;
+	}
   
   table tbody td {
     padding-top: 6px;
@@ -287,11 +305,16 @@ function updateColumn(prefix, departures) {
   const colors = getLineColors(designation);
 
   // Top row
-  lineEl.innerHTML = `
-    <span class="line-wrapper">
-      <span class="line" style="background:${colors.backgroundColor};color:${colors.textColor};">${designation}</span>
+lineEl.innerHTML = `
+  <span class="line-wrapper">
+    <span class="line" style="background:${colors.backgroundColor};color:${colors.textColor};">
+      ${designation}
     </span>
-  `;
+    ${first.deviations && first.deviations.length
+      ? `<span class="warning-icon-top">🟡</span>`
+      : ""}
+  </span>
+`;
 
   destEl.innerHTML = '';
   const destText = document.createElement('span');
@@ -318,31 +341,52 @@ function updateColumn(prefix, departures) {
   }
 
   // Top-row ticker for deviations
-  if (first.deviations && first.deviations.length) {
-    const devMsg = first.deviations
-      .map(dev => dev.message)
-      .filter(msg => msg.trim().toLowerCase() !== "inställd")
-      .join(" | ");
-    if (devMsg) {
-      destEl.classList.add("has-ticker");
+if (first.deviations && first.deviations.length) {
+  const devMsg = first.deviations
+    .map(dev => dev.message)
+    .filter(msg => msg.trim().toLowerCase() !== "inställd")
+    .join(" | ");
+  if (devMsg) {
+    destEl.classList.add("has-ticker");
+
+    // Destination container
+    destEl.innerHTML = '';
+    const destContainer = document.createElement("div");
+    destContainer.textContent = first.destination;
+    destContainer.style.whiteSpace = "nowrap";
+    destContainer.style.overflow = "hidden";
+    destContainer.style.textOverflow = "ellipsis";
+    destEl.appendChild(destContainer);
+
+    setTimeout(() => {
+      // Shrink destination text
+      destContainer.classList.add("destination-small");
+
+      // Deviation container
       const scrollDiv = document.createElement("div");
-      scrollDiv.className = "ticker";
+      scrollDiv.classList.add("deviation-big");
       scrollDiv.style.whiteSpace = "nowrap";
       scrollDiv.style.overflow = "hidden";
-      scrollDiv.style.fontSize = "14px";
-      scrollDiv.style.color = "yellow";
+
       const scrollText = document.createElement("div");
       scrollText.textContent = devMsg;
       scrollText.style.display = "inline-block";
       scrollText.style.paddingLeft = "100%";
       const charCount = scrollText.textContent.length;
       const seconds = Math.max(8, Math.min(40, charCount * 0.11));
-      scrollText.style.animation = `scroll-left ${seconds}s linear infinite`;
+      scrollText.style.animation = `scroll-left ${seconds}s linear 1`;
+
       scrollDiv.appendChild(scrollText);
-      destEl.innerHTML = '';
       destEl.appendChild(scrollDiv);
-    }
+
+      scrollText.addEventListener("animationend", () => {
+        // Remove deviation line and restore destination size
+        scrollDiv.remove();
+        destContainer.classList.remove("destination-small");
+      });
+    }, 5000);
   }
+}
 
   // Build table rows
   tbody.innerHTML = "";
@@ -436,7 +480,7 @@ function updateStatusBar() {
 
   const leftEl = document.getElementById('status-left');
   leftEl.style.color = timeColor;
-  leftEl.textContent = `${lastUpdateStr} (${nextUpdateIn}s) ${freshnessEmoji}`;
+  leftEl.textContent = `${freshnessEmoji} ${lastUpdateStr} (${nextUpdateIn}s)`;
 
   document.getElementById('status-right').textContent = batteryStr;
 }

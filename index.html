@@ -158,6 +158,10 @@
 	  font-size: 0.6em; /* larger than the table deviation */
 	  color: yellow;
 	}
+	
+	#tram-stop-devs, #train-stop-devs {
+	  display: none;
+	}
   
   table tbody td {
     padding-top: 6px;
@@ -197,6 +201,9 @@
         <tr><td colspan="3" style="text-align:center;color:#bbb;">Laddar...</td></tr>
       </tbody>
     </table>
+	<div id="tram-stop-devs" style="font-size:14px;color:yellow;margin-top:4px;">
+		
+	</div>
   </div>
   <div class="col">
     <div class="top-row">
@@ -216,6 +223,9 @@
         <tr><td colspan="3" style="text-align:center;color:#bbb;">Laddar...</td></tr>
       </tbody>
     </table>
+	<div id="train-stop-devs" style="font-size:14px;color:yellow;margin-top:4px;">
+		
+	</div>
   </div>
 </div>
 <div id="status-bar" style="
@@ -256,6 +266,10 @@ async function fetchDepartures() {
     if (!res.ok) throw new Error(`API-svar: ${res.status} ${res.statusText}`);
     const data = await res.json();
     if (!data.departures) throw new Error("Ingen 'departures'-nyckel i API-svaret");
+
+	const stopDevs = data.stop_deviations || [];
+	updateStopDeviations(stopDevs);
+
 
     const trams = data.departures
       .filter(dep => dep.line.transport_mode === "TRAM" && dep.direction_code === 1)
@@ -505,7 +519,87 @@ function initBatteryStatus() {
 }
 
 
+let tramStopMessages = [];
+let trainStopMessages = [];
+let tramViewed = false;
+let trainViewed = false;
 
+function updateStopDeviations(stopDevs) {
+  const prevTramMessages = [...tramStopMessages];
+  const prevTrainMessages = [...trainStopMessages];
+
+  function affectsTram(dev) {
+    return dev.scope?.lines?.some(l => l.transport_mode === "TRAM");
+  }
+  function affectsTrain(dev) {
+    return dev.scope?.lines?.some(l => l.transport_mode === "TRAIN");
+  }
+
+  tramStopMessages = stopDevs.filter(affectsTram).map(dev => dev.message);
+  trainStopMessages = stopDevs.filter(affectsTrain).map(dev => dev.message);
+
+  const tramEl = document.getElementById("tram-stop-devs");
+  const trainEl = document.getElementById("train-stop-devs");
+
+  // 🚨 Check if there are changes in messages
+  const tramChanged = JSON.stringify(prevTramMessages) !== JSON.stringify(tramStopMessages);
+  const trainChanged = JSON.stringify(prevTrainMessages) !== JSON.stringify(trainStopMessages);
+
+  if (tramStopMessages.length) {
+    tramEl.style.display = "block";
+    tramEl.textContent = `Stationsmeddelanden för tvärbanan (${tramStopMessages.length})`;
+    // If new or changed, highlight yellow
+    if (tramChanged) {
+      tramViewed = false;
+      tramEl.style.color = "orange";
+      tramEl.style.fontWeight = "bold";
+    } else {
+      tramEl.style.color = tramViewed ? "gray" : "orange";
+      tramEl.style.fontWeight = tramViewed ? "normal" : "bold";
+    }
+  } else {
+    tramEl.style.display = "none";
+  }
+
+  if (trainStopMessages.length) {
+    trainEl.style.display = "block";
+    trainEl.textContent = `Stationsmeddelanden för pendeltåg (${trainStopMessages.length})`;
+    if (trainChanged) {
+      trainViewed = false;
+      trainEl.style.color = "orange";
+      trainEl.style.fontWeight = "bold";
+    } else {
+      trainEl.style.color = trainViewed ? "gray" : "orange";
+      trainEl.style.fontWeight = trainViewed ? "normal" : "bold";
+    }
+  } else {
+    trainEl.style.display = "none";
+  }
+}
+
+// Handle tram click
+document.getElementById("tram-stop-devs").addEventListener("click", () => {
+  if (tramStopMessages.length) {
+    alert(tramStopMessages.join("\n\n"));
+    tramViewed = true;
+    document.getElementById("tram-stop-devs").style.color = "gray";
+    document.getElementById("tram-stop-devs").style.fontWeight = "normal";
+  } else {
+    alert("Inga stationsmeddelanden.");
+  }
+});
+
+// Handle train click
+document.getElementById("train-stop-devs").addEventListener("click", () => {
+  if (trainStopMessages.length) {
+    alert(trainStopMessages.join("\n\n"));
+    trainViewed = true;
+    document.getElementById("train-stop-devs").style.color = "gray";
+    document.getElementById("train-stop-devs").style.fontWeight = "normal";
+  } else {
+    alert("Inga stationsmeddelanden.");
+  }
+});
 
 
 setInterval(() => {
